@@ -1519,7 +1519,7 @@ var codeMirrorFn = function() {
                         if (match!==null) {
                             var token = match[0].trim();
                             if (sol) {
-                                if (['title','author','homepage','background_color','text_color','key_repeat_interval','realtime_interval','again_interval','flickscreen','zoomscreen','color_palette','youtube'].indexOf(token)>=0) {
+                                if (['title','author','homepage','background_color','text_color','key_repeat_interval','key_repeat_interval_start','realtime_interval','again_interval','flickscreen','zoomscreen','color_palette','youtube'].indexOf(token)>=0) {
                                     
                                     if (token==='author' || token==='homepage' || token==='title') {
                                         stream.string=mixedCase;

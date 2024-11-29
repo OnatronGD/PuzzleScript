@@ -1,5 +1,7 @@
 var keyRepeatTimer=0;
 var keyRepeatIndex=0;
+var movesToTriggerFasterKeyRepeat=1; //TODO: Make this customizable.
+var movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
 var input_throttle_timer=0.0;
 var lastinput=-100;
 
@@ -424,6 +426,7 @@ function onKeyDown(event) {
 		    } else {
     		    keybuffer.splice(keyRepeatIndex,0,event.keyCode);
 	    	    keyRepeatTimer=0;
+				repeatinterval=repeatintervalstart;
 	    	    checkKey(event,!event.repeat);
 		    }
 		}
@@ -486,19 +489,25 @@ function onKeyUp(event) {
     	keybuffer.splice(index,1);
     	if (keyRepeatIndex>=index){
     		keyRepeatIndex--;
-    	}
+		}
+		movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
+		repeatinterval = repeatintervalstart;
     }
 }
 
 function onMyFocus(event) {	
 	keybuffer=[];
 	keyRepeatIndex = 0;
+	movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
+	repeatinterval = repeatintervalstart;
 	keyRepeatTimer = 0;
 }
 
 function onMyBlur(event) {
 	keybuffer=[];
 	keyRepeatIndex = 0;
+	movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
+	repeatinterval = repeatintervalstart;
 	keyRepeatTimer = 0;
 }
 
@@ -859,6 +868,12 @@ function update() {
 	    if (keyRepeatTimer>ticklength) {
 	    	keyRepeatTimer=0;	
 	    	keyRepeatIndex = (keyRepeatIndex+1)%keybuffer.length;
+			if (movesBeforeFasterKeyRepeatCurrent > 0) {
+				movesBeforeFasterKeyRepeatCurrent--;
+			}
+			if (movesBeforeFasterKeyRepeatCurrent <= 0) {
+				repeatinterval = repeatintervalmain;
+			}
 	    	var key = keybuffer[keyRepeatIndex];
 	        checkKey({keyCode:key},false);
 	    }

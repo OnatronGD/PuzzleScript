@@ -23,6 +23,7 @@
             ["flickscreen", "8x5", "Setting flickscreen divides each level into WxH grids, and zooms the camera in so that the player can only see one at a time"],
             ["homepage", "www.puzzlescript.net", "A link to your homepage!"],
             ["key_repeat_interval", "0.1", "When you hold down a key, how long is the delay between repeated presses getting sent to the game (in seconds)?"],
+            ["key_repeat_interval_start", "0.1", "If set, overrides key_repeat_interval for the first input in a set of repeated presses sent to the game."],
             ["noaction", "", "Hides the action key (X) instruction from the title screen, and does not respond when the player pressed it (outside of menus and cutscenes and the like)."],
             ["norepeat_action", "", "The action button will only respond to individual presses, and not auto-trigger when held down."],
             ["noundo", "", "Disables the undo key (Z)"],

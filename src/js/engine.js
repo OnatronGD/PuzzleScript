@@ -645,10 +645,16 @@ function setGameState(_state, command, randomseed) {
     }
 
     if (state.metadata.key_repeat_interval!==undefined) {
-		repeatinterval=state.metadata.key_repeat_interval*1000;
+		repeatintervalmain=state.metadata.key_repeat_interval*1000;
     } else {
-    	repeatinterval=150;
-    }
+    	repeatintervalmain=150;
+	}
+	if (state.metadata.key_repeat_interval_start!==undefined) {
+		repeatintervalstart=state.metadata.key_repeat_interval_start*1000;
+    } else {
+    	repeatintervalstart=repeatintervalmain;
+	}
+	repeatinterval=repeatintervalstart;
 
     if (state.metadata.again_interval!==undefined) {
 		againinterval=state.metadata.again_interval*1000;

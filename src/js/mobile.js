@@ -98,6 +98,9 @@ Mobile.debugDot = function (event) {
         this.setMenuAnimationRatio = this.setMenuAnimationRatio.bind(this);
         this.repeatTick = this.repeatTick.bind(this);
         this.isFocused = true;
+
+        this.movesToTriggerFasterKeyRepeat = 1; //TODO: Make this customizable.
+        this.movesBeforeFasterKeyRepeatCurrent = movesToTriggerFasterKeyRepeat;
     };
 
     // assign the element that will allow tapping to toggle focus.
@@ -266,8 +269,9 @@ Mobile.debugDot = function (event) {
         if (this.repeatInterval) {
             return;
         }
+        this.movesBeforeFasterKeyRepeatCurrent = this.movesToTriggerFasterKeyRepeat;
         this.isRepeating = true;
-        repeatIntervalMilliseconds = state.metadata.key_repeat_interval * 1000;
+        repeatIntervalMilliseconds = state.metadata.key_repeat_interval_start * 1000;
         if (isNaN(repeatIntervalMilliseconds) || !repeatIntervalMilliseconds) {
             repeatIntervalMilliseconds = DEFAULT_REPEAT_INTERVAL;
         }
@@ -286,6 +290,18 @@ Mobile.debugDot = function (event) {
     proto.repeatTick = function () {
         if (this.isTouching) {
             this.handleSwipe(this.direction, this.touchCount);
+        }
+
+        if (this.movesBeforeFasterKeyRepeatCurrent > 0) {
+            this.movesBeforeFasterKeyRepeatCurrent--;
+        }
+        if (this.movesBeforeFasterKeyRepeatCurrent <= 0) {
+            var repeatIntervalMilliseconds = state.metadata.key_repeat_interval * 1000;
+            if (isNaN(repeatIntervalMilliseconds) || !repeatIntervalMilliseconds) {
+                repeatIntervalMilliseconds = DEFAULT_REPEAT_INTERVAL;
+            }
+            clearInterval(this.repeatInterval);
+            this.repeatInterval = setInterval(this.repeatTick, repeatIntervalMilliseconds);
         }
     };
 
