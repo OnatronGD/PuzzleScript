@@ -300,7 +300,9 @@ var quittingTitleScreen=false;
 var quittingMessageScreen=false;
 var deltatime=17;
 var timer=0;
-var repeatinterval=150;
+var repeatintervalmain=150;
+var repeatintervalstart=repeatintervalmain;
+var repeatinterval=repeatintervalstart;
 var autotick=0;
 var autotickinterval=0;
 var winning=false;
@@ -7349,6 +7351,7 @@ function showContinueOptionOnTitleScreen(){
 }
 
 function unloadGame() {
+	levelEditorOpened=false;
 	state=introstate;
 	level = new Level(0, 5, 5, 2, null);
 	level.objects = new Int32Array(0);
@@ -7842,10 +7845,16 @@ function setGameState(_state, command, randomseed) {
     }
 
     if (state.metadata.key_repeat_interval!==undefined) {
-		repeatinterval=state.metadata.key_repeat_interval*1000;
+		repeatintervalmain=state.metadata.key_repeat_interval*1000;
     } else {
-    	repeatinterval=150;
-    }
+    	repeatintervalmain=150;
+	}
+	if (state.metadata.key_repeat_interval_start!==undefined) {
+		repeatintervalstart=state.metadata.key_repeat_interval_start*1000;
+    } else {
+    	repeatintervalstart=repeatintervalmain;
+	}
+	repeatinterval=repeatintervalstart;
 
     if (state.metadata.again_interval!==undefined) {
 		againinterval=state.metadata.again_interval*1000;
@@ -11864,7 +11873,7 @@ var codeMirrorFn = function() {
                         if (match!==null) {
                             var token = match[0].trim();
                             if (sol) {
-                                if (['title','author','homepage','background_color','text_color','key_repeat_interval','realtime_interval','again_interval','flickscreen','zoomscreen','color_palette','youtube'].indexOf(token)>=0) {
+                                if (['title','author','homepage','background_color','text_color','key_repeat_interval','key_repeat_interval_start','realtime_interval','again_interval','flickscreen','zoomscreen','color_palette','youtube'].indexOf(token)>=0) {
                                     
                                     if (token==='author' || token==='homepage' || token==='title') {
                                         stream.string=mixedCase;
@@ -14997,6 +15006,8 @@ function qualifyURL(url) {
 <script>
 var keyRepeatTimer=0;
 var keyRepeatIndex=0;
+var movesToTriggerFasterKeyRepeat=1; //TODO: Make this customizable.
+var movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
 var input_throttle_timer=0.0;
 var lastinput=-100;
 
@@ -15421,6 +15432,7 @@ function onKeyDown(event) {
 		    } else {
     		    keybuffer.splice(keyRepeatIndex,0,event.keyCode);
 	    	    keyRepeatTimer=0;
+				repeatinterval=repeatintervalstart;
 	    	    checkKey(event,!event.repeat);
 		    }
 		}
@@ -15483,19 +15495,25 @@ function onKeyUp(event) {
     	keybuffer.splice(index,1);
     	if (keyRepeatIndex>=index){
     		keyRepeatIndex--;
-    	}
+		}
+		movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
+		repeatinterval = repeatintervalstart;
     }
 }
 
 function onMyFocus(event) {	
 	keybuffer=[];
 	keyRepeatIndex = 0;
+	movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
+	repeatinterval = repeatintervalstart;
 	keyRepeatTimer = 0;
 }
 
 function onMyBlur(event) {
 	keybuffer=[];
 	keyRepeatIndex = 0;
+	movesBeforeFasterKeyRepeatCurrent=movesToTriggerFasterKeyRepeat;
+	repeatinterval = repeatintervalstart;
 	keyRepeatTimer = 0;
 }
 
@@ -15856,6 +15874,12 @@ function update() {
 	    if (keyRepeatTimer>ticklength) {
 	    	keyRepeatTimer=0;	
 	    	keyRepeatIndex = (keyRepeatIndex+1)%keybuffer.length;
+			if (movesBeforeFasterKeyRepeatCurrent > 0) {
+				movesBeforeFasterKeyRepeatCurrent--;
+			}
+			if (movesBeforeFasterKeyRepeatCurrent <= 0) {
+				repeatinterval = repeatintervalmain;
+			}
 	    	var key = keybuffer[keyRepeatIndex];
 	        checkKey({keyCode:key},false);
 	    }
@@ -15997,6 +16021,9 @@ Mobile.debugDot = function (event) {
         this.setMenuAnimationRatio = this.setMenuAnimationRatio.bind(this);
         this.repeatTick = this.repeatTick.bind(this);
         this.isFocused = true;
+
+        this.movesToTriggerFasterKeyRepeat = 1; //TODO: Make this customizable.
+        this.movesBeforeFasterKeyRepeatCurrent = movesToTriggerFasterKeyRepeat;
     };
 
     // assign the element that will allow tapping to toggle focus.
@@ -16165,8 +16192,9 @@ Mobile.debugDot = function (event) {
         if (this.repeatInterval) {
             return;
         }
+        this.movesBeforeFasterKeyRepeatCurrent = this.movesToTriggerFasterKeyRepeat;
         this.isRepeating = true;
-        repeatIntervalMilliseconds = state.metadata.key_repeat_interval * 1000;
+        repeatIntervalMilliseconds = state.metadata.key_repeat_interval_start * 1000;
         if (isNaN(repeatIntervalMilliseconds) || !repeatIntervalMilliseconds) {
             repeatIntervalMilliseconds = DEFAULT_REPEAT_INTERVAL;
         }
@@ -16185,6 +16213,18 @@ Mobile.debugDot = function (event) {
     proto.repeatTick = function () {
         if (this.isTouching) {
             this.handleSwipe(this.direction, this.touchCount);
+        }
+
+        if (this.movesBeforeFasterKeyRepeatCurrent > 0) {
+            this.movesBeforeFasterKeyRepeatCurrent--;
+        }
+        if (this.movesBeforeFasterKeyRepeatCurrent <= 0) {
+            var repeatIntervalMilliseconds = state.metadata.key_repeat_interval * 1000;
+            if (isNaN(repeatIntervalMilliseconds) || !repeatIntervalMilliseconds) {
+                repeatIntervalMilliseconds = DEFAULT_REPEAT_INTERVAL;
+            }
+            clearInterval(this.repeatInterval);
+            this.repeatInterval = setInterval(this.repeatTick, repeatIntervalMilliseconds);
         }
     };
 
