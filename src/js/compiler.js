@@ -45,10 +45,6 @@ var colorPalette;
 
 function generateExtraMembers(state) {
 
-    if (state.collisionLayers.length === 0) {
-        logError("No collision layers defined.  All objects need to be in collision layers.");
-    }
-
     //annotate objects with layers
     //assign ids at the same time
     state.idDict = [];
@@ -400,12 +396,13 @@ function generateExtraMembers(state) {
             var lineNumber = state.original_line_numbers['background'];
             logError("background cannot be an aggregate (declared with 'and'), it has to be a simple type, or property (declared in terms of others using 'or').",lineNumber);
         } else {
+            //background doesn't exist. Error already printed elsewhere.
             var o = state.objects[state.idDict[0]];
             if (o!=null){
                 backgroundid = o.id;
                 backgroundlayer = o.layer;
             }
-            logError("you have to define something to be the background");
+            logError("Seriously, you have to define something to be the background.");
         }
     } else {
         backgroundid = state.objects.background.id;
@@ -413,24 +410,6 @@ function generateExtraMembers(state) {
     }
     state.backgroundid = backgroundid;
     state.backgroundlayer = backgroundlayer;
-}
-
-Level.prototype.calcBackgroundMask = function(state) {    
-    if (state.backgroundlayer === undefined) {
-        logError("you have to have a background layer");
-    }
-
-    var backgroundMask = state.layerMasks[state.backgroundlayer];
-    for (var i = 0; i < this.n_tiles; i++) {
-        var cell = this.getCell(i);
-        cell.iand(backgroundMask);
-        if (!cell.iszero()) {
-            return cell;
-        }
-    }
-    cell = new BitVec(STRIDE_OBJ);
-    cell.ibitset(state.backgroundid);
-    return cell;
 }
 
 function levelFromString(state, level) {
@@ -530,6 +509,7 @@ var simpleRelativeDirections = ['^', 'v', '<', '>'];
 var reg_directions_only = /^(\>|\<|\^|v|up|down|left|right|moving|stationary|no|randomdir|random|horizontal|vertical|orthogonal|perpendicular|parallel|action)$/;
 //redeclaring here, i don't know why
 var commandwords = ["sfx0", "sfx1", "sfx2", "sfx3", "sfx4", "sfx5", "sfx6", "sfx7", "sfx8", "sfx9", "sfx10", "cancel", "checkpoint", "restart", "win", "message", "again"];
+var commandwords_sfx = ["sfx0", "sfx1", "sfx2", "sfx3", "sfx4", "sfx5", "sfx6", "sfx7", "sfx8", "sfx9", "sfx10"];
 
 
 function directionalRule(rule) {
@@ -668,11 +648,14 @@ function processRuleString(rule, state, curRules) {
                         if (groupNumber === lineNumber) {
                             if (curRules.length == 0) {
                                 logError('The "+" symbol, for joining a rule with the group of the previous rule, needs a previous rule to be applied to.', lineNumber);
+                                has_plus=false;
                             }
                             if (i !== 0) {
                                 logError('The "+" symbol, for joining a rule with the group of the previous rule, must be the first symbol on the line ', lineNumber);
                             }
-                            groupNumber = curRules[curRules.length - 1].groupNumber;
+                            if (has_plus){
+                                groupNumber = curRules[curRules.length - 1].groupNumber;
+                            }
                         } else {
                             logError('Two "+"s (the "append to previous rule group" symbol) applied to the same rule.', lineNumber);
                         }
@@ -740,6 +723,7 @@ function processRuleString(rule, state, curRules) {
                         bracketbalance--;
                         if (bracketbalance < 0) {
                             logWarning("Multiple closing brackets without corresponding opening brackets.  Something fishy here.  Every '[' has to be closed by a ']', and you can't nest them.", lineNumber);
+                            return null;
                         }
 
                         if (curcell.length % 2 == 1) {
@@ -773,6 +757,7 @@ function processRuleString(rule, state, curRules) {
                             logWarning('Encountered an unexpected "->" inside square brackets.  It\'s used to separate states, it has no place inside them >:| .', lineNumber);
                         } else if (rhs) {
                             logError('Error, you can only use "->" once in a rule; it\'s used to separate before and after states.', lineNumber);
+                            return null;
                         } else {
                             rhs = true;
                         }
@@ -808,6 +793,19 @@ function processRuleString(rule, state, curRules) {
                             commands.push([token, messageStr]);
                             i = tokens.length;
                         } else {
+                            if (commandwords_sfx.indexOf(token) >= 0) {
+                                //check defined
+                                var found=false;
+                                for (var j = 0; j < state.sounds.length;j++){
+                                    var sound = state.sounds[j];
+                                    if (sound[0][0] === token){
+                                        found=true;
+                                    }
+                                }
+                                if (!found){
+                                    logWarning('Sound effect "' + token + '" not defined.', lineNumber);                            
+                                }
+                            }
                             commands.push([token]);
                         }
                     } else {
@@ -892,6 +890,9 @@ function rulesToArray(state) {
     for (var i = 0; i < oldrules.length; i++) {
         var lineNumber = oldrules[i][1];
         var newrule = processRuleString(oldrules[i], state, rules);
+        if (newrule==null){
+            continue;//error in processing string.
+        }
         if (newrule.bracket !== undefined) {
             loops.push([lineNumber, newrule.bracket]);
             continue;
@@ -1594,7 +1595,7 @@ function rulesToMask(state) {
         layerTemplate.push(null);
     }
 
-    for (var i = 0; i < state.rules.length; i++) {
+    outerloop: for (var i = 0; i < state.rules.length; i++) {
         var rule = state.rules[i];
         for (var j = 0; j < rule.lhs.length; j++) {
             var cellrow_l = rule.lhs[j];
@@ -1615,7 +1616,10 @@ function rulesToMask(state) {
                         objectsPresent = ellipsisPattern;
                         if (cell_l.length !== 2) {
                             logError("You can't have anything in with an ellipsis. Sorry.", rule.lineNumber);
-                            throw 'aborting compilation';//throwing here because I was getting infinite loops in the compiler otherwise
+                            //delete the rule
+                            state.rules.splice(i, 1);
+                            i--;
+                            continue outerloop;
                         } else if ((k === 0) || (k === cellrow_l.length - 1)) {
                             logError("There's no point in putting an ellipsis at the very start or the end of a rule", rule.lineNumber);
                         } else if (rule.rhs.length > 0) {
@@ -2070,6 +2074,40 @@ function generateRigidGroupList(state) {
     state.groupIndex_to_RigidGroupIndex = groupIndex_to_RigidGroupIndex;
 }
 
+function isObjectDefined(state, name) {
+    
+    var result = name in state.objects || 
+    (state.aggregatesDict!==undefined && (name in state.aggregatesDict)) || 
+    (state.propertiesDict!==undefined && (name in state.propertiesDict)) || 
+    (state.synonymsDict!==undefined && (name in state.synonymsDict));
+
+    if (state.legend_aggregates!==undefined){
+        for (var i=0;i<state.legend_aggregates.length;i++){
+            if (state.legend_aggregates[i][0]===name){
+                result = true;
+                break;
+            }
+        }
+    }
+    if (state.legend_properties!==undefined){
+        for (var i=0;i<state.legend_properties.length;i++){
+            if (state.legend_properties[i][0]===name){
+                result = true;
+                break;
+            }
+        }
+    }
+    if (state.legend_synonyms!==undefined){
+        for (var i=0;i<state.legend_synonyms.length;i++){
+            if (state.legend_synonyms[i][0]===name){
+                result = true;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 function getMaskFromName(state, name) {
     var objectMask = new BitVec(STRIDE_OBJ);
     if (name in state.objects) {
@@ -2102,7 +2140,7 @@ function getMaskFromName(state, name) {
     }
 
     if (objectMask.iszero()) {
-        logErrorNoLine("error, didn't find any object called player, either in the objects section, or the legends section. there must be a player!");
+        logErrorNoLine(`Error, didn't find any object called ${name}, either in the objects section, or the legends section.`);
     }
     return objectMask;
 }
@@ -2301,7 +2339,10 @@ function processWinConditions(state) {
         var aggr1 = false;
         var aggr2 = false;
 
-        if (n1 in state.objectMasks) {
+        if (wincondition.length <=2 ){
+            logError('Win conditions is badly formatted - needs to look something like "No Fruit", "All Target On Crate", "Some Fruit", "Some Gold on Chest", "No Gold on Chest", or the like.', lineNumber);
+        }
+        else if (n1 in state.objectMasks) {
             aggr1 = false;
             mask1 = state.objectMasks[n1];
         } else if (n1 in state.aggregateMasks){
@@ -2690,6 +2731,10 @@ function generateSoundData(state) {
                     var targetName = targets[j];
                     var targetDat = state.objects[targetName];
                     var targetLayer = targetDat.layer;
+                    //if not found, continue - probably from the error ""aggr" is an aggregate (defined using "and"), and cannot be added to a single layer because its constituent objects must be able to coexist."
+                    if (targetLayer === undefined) {
+                        continue;
+                    }
                     var shiftedDirectionMask = new BitVec(STRIDE_MOV);
                     shiftedDirectionMask.ishiftor(directionMask, 5 * targetLayer);
 
@@ -2817,7 +2862,19 @@ function loadFile(str) {
         while (ss.eol() === false);
     }
 
-    // delete state.lineNumber;
+    //check if player defined
+    if (!isObjectDefined(state,"player")){            
+        logErrorNoLine("Error, didn't find any object called player, either in the objects section, or the legends section. There must be a player!");
+    }
+    //check if background
+    if (!isObjectDefined(state,"background")){
+        logErrorNoLine("Error, didn't find any object called background, either in the objects section, or the legends section. There must be a background!");
+    }
+
+    if (state.collisionLayers.length === 0) {
+        logError("No collision layers defined.  All objects need to be in collision layers.");
+        return null;
+    }
 
     generateExtraMembers(state);
     generateMasks(state);
@@ -2924,10 +2981,18 @@ function compile(command, text, randomseed) {
     
 
     if (errorCount > 0) {
-        if (IDE===false){
-            consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly.  If this is an older game, and you think it just broke because of recent changes in the puzzlescript engine, please consider dropping an email to analytic@gmail.com with a link to the game and I\'ll try make sure it\'s back working ASAP.</span>');
-        } else{
-            consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly.</span>');
+        if (IDE===false){            
+            if (state==null){
+                consoleError('<span class="systemMessage">Errors detected during compilation; I can\'t salvage anything playable from it.  If this is an older game, and you think it just broke because of recent changes in the puzzlescript engine, please consider dropping an email to analytic@gmail.com with a link to the game and I\'ll try make sure it\'s back working ASAP.</span>');
+            } else {
+                consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly. If this is an older game, and you think it just broke because of recent changes in the puzzlescript engine, please consider dropping an email to analytic@gmail.com with a link to the game and I\'ll try make sure it\'s back working ASAP.</span>');
+            }
+        } else {
+            if (state==null){
+                consoleError('<span class="systemMessage">Errors detected during compilation; I can\'t salvage anything playable from it.</span>');
+            } else {
+                consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly.</span>');
+            }
         }
         if (errorCount > MAX_ERRORS) {
             return;

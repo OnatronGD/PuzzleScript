@@ -35,7 +35,7 @@ var throttle_movement=false;
 var cache_console_messages=false;
 var quittingTitleScreen=false;
 var quittingMessageScreen=false;
-var deltatime=17;
+var deltatime=17; // this gets updated every frame; see loop()
 var timer=0;
 var repeatintervalmain=150;
 var repeatintervalstart=repeatintervalmain;
@@ -54,31 +54,5 @@ var restarting=false;
 var messageselected=false;
 
 var textImages={};
-var initLevel = {
-    width: 5,
-    height: 5,
-    layerCount: 2,
-    dat: [
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2,
-    3, 2, 1, 3, 2, 1, 3, 2, 1, 3,
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2
-    ],
-    movementMask:[
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2,
-    3, 2, 1, 3, 2, 1, 3, 2, 1, 3,
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2
-    ],
-    rigidGroupIndexMask:[],//[indexgroupNumber, masked by layer arrays]
-    rigidMovementAppliedMask:[],//[indexgroupNumber, masked by layer arrays]
-    bannedGroup:[],
-    colCellContents:[],
-    rowCellContents:[],
-    colCellContents_Movements:[],
-    rowCellContents_Movements:[],
-};
 
-var level = initLevel;
+var level = new Level(); //just give it some starting state

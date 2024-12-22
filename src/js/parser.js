@@ -376,7 +376,7 @@ var codeMirrorFn = function() {
                 state.legend_aggregates.push(newlegend);
         
             } else if (splits[3]==='or'){
-                var malformed=true;
+                var malformed=false;
 
                 var substitutor = function(n) {
 
@@ -394,8 +394,9 @@ var codeMirrorFn = function() {
                     for (var i=0;i<state.legend_aggregates.length;i++) {
                         var a = state.legend_aggregates[i];
                         if (a[0]===n) {           
-                            logError("Cannot define a property (something defined in terms of 'or') in terms of aggregates (something that uses 'and').", state.lineNumber);
-                            malformed=false;          
+                            logError(`Cannot define a property (something defined in terms of 'or') in terms of an aggregate (something that uses 'and').  In this case, you can't define "${splits[0]}" in terms of "${n}".`, state.lineNumber);
+                            malformed=true;  
+                            return [];        
                         }
                     }
                     for (var i=0;i<state.legend_properties.length;i++) {
@@ -418,11 +419,11 @@ var codeMirrorFn = function() {
 
                 for (var i = 5; i < splits.length; i += 2) {
                     if (splits[i].toLowerCase() !== 'or') {
-                        malformed = false;
+                        malformed = true;
                         break;
                     }
                 }
-                if (malformed) {
+                if (!malformed) {
                     var newlegend = [splits[0]].concat(substitutor(splits[2])).concat(substitutor(splits[4]));
                     for (var i = 6; i < splits.length; i += 2) {
                         newlegend.push(splits[i].toLowerCase());
@@ -630,6 +631,7 @@ var codeMirrorFn = function() {
                 if (state.commentLevel > 0) {
                     state.commentLevel--;
                     if (state.commentLevel === 0) {
+                        state.sol_after_comment=true;
                         return 'comment';
                     }
                 } else {
@@ -682,101 +684,114 @@ var codeMirrorFn = function() {
             }            
 
             //MATCH '==="s AT START OF LINE
-            if (sol && stream.match(reg_equalsrow, true)) {
+            //for #977 we need to be careful about matching an equals row in the levels section
+            //check if the line contains something other than an equals characte or space
+            var shouldmatchequals = true;
+            if (sol && state.section==="levels"){
+                var linestring =  stream.string.substring(stream.pos);
+                const reg_matchall_whitespace_equals = /^[\p{Z}\s=]*$/u;
+                if(!reg_matchall_whitespace_equals.test(linestring)){
+                    shouldmatchequals = false;
+                }            
+            }
+
+            if (sol && (shouldmatchequals&&stream.match(reg_equalsrow, true))) {
                 state.line_should_end = true;
                 state.line_should_end_because = 'a bunch of equals signs (\'===\')';
                 return 'EQUALSBIT';
             }
 
             //MATCH SECTION NAME
-            var sectionNameMatches = stream.match(reg_sectionNames, true);
-            if (sol && sectionNameMatches ) {
+            if (state.section!=="levels" /*cf #976 lol*/){
+                var sectionNameMatches = stream.match(reg_sectionNames, true);
+                if (sol && sectionNameMatches) {
 
-                state.section = sectionNameMatches[0].trim();
-                if (state.visitedSections.indexOf(state.section) >= 0) {
-                    logError('cannot duplicate sections (you tried to duplicate \"' + state.section.toUpperCase() + '").', state.lineNumber);
-                }
-                state.line_should_end = true;
-                state.line_should_end_because = `a section name ("${state.section.toUpperCase()}")`;
-                state.visitedSections.push(state.section);
-                var sectionIndex = sectionNames.indexOf(state.section);
-                if (sectionIndex == 0) {
-                    state.objects_section = 0;
-                    if (state.visitedSections.length > 1) {
-                        logError('section "' + state.section.toUpperCase() + '" must be the first section', state.lineNumber);
+                    state.section = sectionNameMatches[0].trim();
+                    if (state.visitedSections.indexOf(state.section) >= 0) {
+                        logError('cannot duplicate sections (you tried to duplicate \"' + state.section.toUpperCase() + '").', state.lineNumber);
                     }
-                } else if (state.visitedSections.indexOf(sectionNames[sectionIndex - 1]) == -1) {
-                    if (sectionIndex===-1) {
-                        //honestly not sure how I could get here.
-                        logError('no such section as "' + state.section.toUpperCase() + '".', state.lineNumber);
-                    } else {
-                        logError('section "' + state.section.toUpperCase() + '" is out of order, must follow  "' + sectionNames[sectionIndex - 1].toUpperCase() + '" (or it could be that the section "'+sectionNames[sectionIndex - 1].toUpperCase()+`"is just missing totally.  You have to include all section headings, even if the section itself is empty).`, state.lineNumber);                            
+                    state.line_should_end = true;
+                    state.line_should_end_because = `a section name ("${state.section.toUpperCase()}")`;
+                    state.visitedSections.push(state.section);
+                    var sectionIndex = sectionNames.indexOf(state.section);
+                    if (sectionIndex == 0) {
+                        state.objects_section = 0;
+                        if (state.visitedSections.length > 1) {
+                            logError('section "' + state.section.toUpperCase() + '" must be the first section', state.lineNumber);
+                        }
+                    } else if (state.visitedSections.indexOf(sectionNames[sectionIndex - 1]) == -1) {
+                        if (sectionIndex===-1) {
+                            //honestly not sure how I could get here.
+                            logError('no such section as "' + state.section.toUpperCase() + '".', state.lineNumber);
+                        } else {
+                            logError('section "' + state.section.toUpperCase() + '" is out of order, must follow  "' + sectionNames[sectionIndex - 1].toUpperCase() + '" (or it could be that the section "'+sectionNames[sectionIndex - 1].toUpperCase()+`"is just missing totally.  You have to include all section headings, even if the section itself is empty).`, state.lineNumber);                            
+                        }
                     }
-                }
 
-                if (state.section === 'sounds') {
-                    //populate names from rules
-                    for (var n in state.objects) {
-                        if (state.objects.hasOwnProperty(n)) {
-/*                                if (state.names.indexOf(n)!==-1) {
-                                logError('Object "'+n+'" has been declared to be multiple different things',state.objects[n].lineNumber);
-                            }*/
+                    if (state.section === 'sounds') {
+                        //populate names from rules
+                        for (var n in state.objects) {
+                            if (state.objects.hasOwnProperty(n)) {
+    /*                                if (state.names.indexOf(n)!==-1) {
+                                    logError('Object "'+n+'" has been declared to be multiple different things',state.objects[n].lineNumber);
+                                }*/
+                                state.names.push(n);
+                            }
+                        }
+                        //populate names from legends
+                        for (var i = 0; i < state.legend_synonyms.length; i++) {
+                            var n = state.legend_synonyms[i][0];
+                            /*
+                            if (state.names.indexOf(n)!==-1) {
+                                logError('Object "'+n+'" has been declared to be multiple different things',state.legend_synonyms[i].lineNumber);
+                            }
+                            */
+                            state.names.push(n);
+                        }
+                        for (var i = 0; i < state.legend_aggregates.length; i++) {
+                            var n = state.legend_aggregates[i][0];
+                            /*
+                            if (state.names.indexOf(n)!==-1) {
+                                logError('Object "'+n+'" has been declared to be multiple different things',state.legend_aggregates[i].lineNumber);
+                            }
+                            */
+                            state.names.push(n);
+                        }
+                        for (var i = 0; i < state.legend_properties.length; i++) {
+                            var n = state.legend_properties[i][0];
+                            /*
+                            if (state.names.indexOf(n)!==-1) {
+                                logError('Object "'+n+'" has been declared to be multiple different things',state.legend_properties[i].lineNumber);
+                            }                           
+                            */ 
                             state.names.push(n);
                         }
                     }
-                    //populate names from legends
-                    for (var i = 0; i < state.legend_synonyms.length; i++) {
-                        var n = state.legend_synonyms[i][0];
-                        /*
-                        if (state.names.indexOf(n)!==-1) {
-                            logError('Object "'+n+'" has been declared to be multiple different things',state.legend_synonyms[i].lineNumber);
+                    else if (state.section === 'levels') {
+                        //populate character abbreviations
+                        for (var n in state.objects) {
+                            if (state.objects.hasOwnProperty(n) && n.length == 1) {
+                                state.abbrevNames.push(n);
+                            }
                         }
-                        */
-                        state.names.push(n);
-                    }
-                    for (var i = 0; i < state.legend_aggregates.length; i++) {
-                        var n = state.legend_aggregates[i][0];
-                        /*
-                        if (state.names.indexOf(n)!==-1) {
-                            logError('Object "'+n+'" has been declared to be multiple different things',state.legend_aggregates[i].lineNumber);
-                        }
-                        */
-                        state.names.push(n);
-                    }
-                    for (var i = 0; i < state.legend_properties.length; i++) {
-                        var n = state.legend_properties[i][0];
-                        /*
-                        if (state.names.indexOf(n)!==-1) {
-                            logError('Object "'+n+'" has been declared to be multiple different things',state.legend_properties[i].lineNumber);
-                        }                           
-                        */ 
-                        state.names.push(n);
-                    }
-                }
-                else if (state.section === 'levels') {
-                    //populate character abbreviations
-                    for (var n in state.objects) {
-                        if (state.objects.hasOwnProperty(n) && n.length == 1) {
-                            state.abbrevNames.push(n);
-                        }
-                    }
 
-                    for (var i = 0; i < state.legend_synonyms.length; i++) {
-                        if (state.legend_synonyms[i][0].length == 1) {
-                            state.abbrevNames.push(state.legend_synonyms[i][0]);
+                        for (var i = 0; i < state.legend_synonyms.length; i++) {
+                            if (state.legend_synonyms[i][0].length == 1) {
+                                state.abbrevNames.push(state.legend_synonyms[i][0]);
+                            }
+                        }
+                        for (var i = 0; i < state.legend_aggregates.length; i++) {
+                            if (state.legend_aggregates[i][0].length == 1) {
+                                state.abbrevNames.push(state.legend_aggregates[i][0]);
+                            }
                         }
                     }
-                    for (var i = 0; i < state.legend_aggregates.length; i++) {
-                        if (state.legend_aggregates[i][0].length == 1) {
-                            state.abbrevNames.push(state.legend_aggregates[i][0]);
-                        }
+                    return 'HEADER';
+                } else {
+                    if (state.section === undefined) {
+                        //unreachable I think, pre-empted caught above
+                        logError('must start with section "OBJECTS"', state.lineNumber);
                     }
-                }
-                return 'HEADER';
-            } else {
-                if (state.section === undefined) {
-                    //unreachable I think, pre-empted caught above
-                    logError('must start with section "OBJECTS"', state.lineNumber);
                 }
             }
 
@@ -1511,7 +1526,7 @@ var codeMirrorFn = function() {
                 
                 default://if you're in the preamble
                 {
-                    if (sol) {
+                    if (sol||state.sol_after_comment) {
                         state.tokenIndex=0;
                     }
                     if (state.tokenIndex==0) {
@@ -1568,7 +1583,10 @@ var codeMirrorFn = function() {
                                 return 'ERROR';
                             }
                             return 'METADATA';
-                        }       
+                        } else {
+                            //garbage found
+                            logError(`Unrecognised stuff "${stream.string}" in the prelude.`, state.lineNumber);
+                        }    
                     } else {
                         stream.match(reg_notcommentstart, true);
                         state.tokenIndex++;

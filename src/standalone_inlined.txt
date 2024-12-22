@@ -84,6 +84,7 @@ a {
   .mobile-menu {
       position: relative;
       top: 5em;
+      left:0.7em;
       margin-left: auto;
       margin-right: auto;
       font-weight: bold;
@@ -161,7 +162,7 @@ a {
   }
 
   .tab-icon {
-      left: -0.5em;
+    left: 0;
       top: 70px;
       width: 18px;
       border-radius: 0 6px 6px 0;
@@ -261,6 +262,233 @@ function storage_remove(key){
 }
 </script>
 <script>
+
+function BitVec(init) {
+	this.data = new Int32Array(init);
+}
+
+BitVec.prototype.cloneInto = function(target) {
+	for (var i=0;i<this.data.length;++i) {
+		target.data[i]=this.data[i];
+	}
+	return target;
+}
+BitVec.prototype.clone = function() {
+	return new BitVec(this.data);
+}
+
+BitVec.prototype.iand = function(other) {
+	for (var i = 0; i < this.data.length; ++i) {
+		this.data[i] &= other.data[i];
+	}
+}
+
+
+BitVec.prototype.inot = function() {
+	for (var i = 0; i < this.data.length; ++i) {
+		this.data[i] = ~this.data[i];
+	}
+}
+
+BitVec.prototype.ior = function(other) {
+	for (var i = 0; i < this.data.length; ++i) {
+		this.data[i] |= other.data[i];
+	}
+}
+
+BitVec.prototype.iclear = function(other) {
+	for (var i = 0; i < this.data.length; ++i) {
+		this.data[i] &= ~other.data[i];
+	}
+}
+
+BitVec.prototype.ibitset = function(ind) {
+	this.data[ind>>5] |= 1 << (ind & 31);
+}
+
+BitVec.prototype.ibitclear = function(ind) {
+	this.data[ind>>5] &= ~(1 << (ind & 31));
+}
+
+BitVec.prototype.get = function(ind) {
+	return (this.data[ind>>5] & 1 << (ind & 31)) !== 0;
+}
+
+BitVec.prototype.getshiftor = function(mask, shift) {
+	var toshift = shift & 31;
+	var ret = this.data[shift>>5] >>> (toshift);
+	if (toshift) {
+		ret |= this.data[(shift>>5)+1] << (32 - toshift);
+	}
+	return ret & mask;
+}
+
+BitVec.prototype.ishiftor = function(mask, shift) {
+	var toshift = shift&31;
+	var low = mask << toshift;
+	this.data[shift>>5] |= low;
+	if (toshift) {
+		var high = mask >> (32 - toshift);
+		this.data[(shift>>5)+1] |= high;
+	}
+}
+
+BitVec.prototype.ishiftclear = function(mask, shift) {
+	var toshift = shift & 31;
+	var low = mask << toshift;
+	this.data[shift>>5] &= ~low;
+	if (toshift){
+		var high = mask >> (32 - (shift & 31));
+		this.data[(shift>>5)+1] &= ~high;
+	}
+}
+
+BitVec.prototype.equals = function(other) {
+	if (this.data.length !== other.data.length)
+		return false;
+	for (var i = 0; i < this.data.length; ++i) {
+		if (this.data[i] !== other.data[i])
+			return false;
+	}
+	return true;
+}
+
+BitVec.prototype.setZero = function() {
+	for (var i = 0; i < this.data.length; ++i) {
+		this.data[i]=0;
+	}
+}
+
+BitVec.prototype.iszero = function() {
+	for (var i = 0; i < this.data.length; ++i) {
+		if (this.data[i])
+			return false;
+	}
+	return true;
+}
+
+BitVec.prototype.bitsSetInArray = function(arr) {
+	for (var i = 0; i < this.data.length; ++i) {
+		if ((this.data[i] & arr[i]) !== this.data[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+BitVec.prototype.bitsClearInArray = function(arr) {
+	for (var i = 0; i < this.data.length; ++i) {
+		if (this.data[i] & arr[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+BitVec.prototype.anyBitsInCommon = function(other) {
+	return !this.bitsClearInArray(other.data);
+}
+</script>
+<script>
+function Level(lineNumber, width, height, layerCount, objects) {
+	this.lineNumber = lineNumber;
+	this.width = width;
+	this.height = height;
+	this.n_tiles = width * height;
+	this.objects = objects;
+	this.layerCount = layerCount;
+	this.commandQueue = [];
+	this.commandQueueSourceRules = [];
+}
+
+Level.prototype.delta_index = function(direction)
+{
+	const [dx, dy] = dirMasksDelta[direction]
+	return dx*this.height + dy
+}
+
+Level.prototype.clone = function() {
+	var clone = new Level(this.lineNumber, this.width, this.height, this.layerCount, null);
+	clone.objects = new Int32Array(this.objects);
+	return clone;
+}
+
+Level.prototype.getCell = function(index) {
+	return new BitVec(this.objects.subarray(index * STRIDE_OBJ, index * STRIDE_OBJ + STRIDE_OBJ));
+}
+
+Level.prototype.getCellInto = function(index,targetarray) {
+	for (var i=0;i<STRIDE_OBJ;i++) {
+		targetarray.data[i]=this.objects[index*STRIDE_OBJ+i];	
+	}
+	return targetarray;
+}
+
+Level.prototype.setCell = function(index, vec) {
+	for (var i = 0; i < vec.data.length; ++i) {
+		this.objects[index * STRIDE_OBJ + i] = vec.data[i];
+	}
+}
+
+var _movementVecs;
+var _movementVecIndex=0;
+Level.prototype.getMovements = function(index) {
+	var _movementsVec=_movementVecs[_movementVecIndex];
+	_movementVecIndex=(_movementVecIndex+1)%_movementVecs.length;
+
+	for (var i=0;i<STRIDE_MOV;i++) {
+		_movementsVec.data[i]= this.movements[index*STRIDE_MOV+i];	
+	}
+	return _movementsVec;
+}
+
+Level.prototype.getRigids = function(index) {
+	return this.rigidMovementAppliedMask[index].clone();
+}
+
+Level.prototype.getMovementsInto = function(index,targetarray) {
+	var _movementsVec=targetarray;
+
+	for (var i=0;i<STRIDE_MOV;i++) {
+		_movementsVec.data[i]=this.movements[index*STRIDE_MOV+i];	
+	}
+	return _movementsVec;
+}
+
+Level.prototype.setMovements = function(index, vec) {
+	for (var i = 0; i < vec.data.length; ++i) {
+		this.movements[index * STRIDE_MOV + i] = vec.data[i];
+	}
+
+	var targetIndex = index*STRIDE_MOV + i;
+		
+	//corresponding object stuff in repositionEntitiesOnLayer
+	var colIndex=(index/this.height)|0;
+	var rowIndex=(index%this.height);
+	level.colCellContents_Movements[colIndex].ior(vec);
+	level.rowCellContents_Movements[rowIndex].ior(vec);
+	level.mapCellContents_Movements.ior(vec);
+}
+
+Level.prototype.calcBackgroundMask = function(state) {    
+    if (state.backgroundlayer === undefined) {
+        logError("you have to have a background layer");
+    }
+
+    var backgroundMask = state.layerMasks[state.backgroundlayer];
+    for (var i = 0; i < this.n_tiles; i++) {
+        var cell = this.getCell(i);
+        cell.iand(backgroundMask);
+        if (!cell.iszero()) {
+            return cell;
+        }
+    }
+    cell = new BitVec(STRIDE_OBJ);
+    cell.ibitset(state.backgroundid);
+    return cell;
+}
+</script>
+<script>
 var unitTesting=false;
 var curlevel=0;
 var curlevelTarget=null;
@@ -298,7 +526,7 @@ var throttle_movement=false;
 var cache_console_messages=false;
 var quittingTitleScreen=false;
 var quittingMessageScreen=false;
-var deltatime=17;
+var deltatime=17; // this gets updated every frame; see loop()
 var timer=0;
 var repeatintervalmain=150;
 var repeatintervalstart=repeatintervalmain;
@@ -317,34 +545,8 @@ var restarting=false;
 var messageselected=false;
 
 var textImages={};
-var initLevel = {
-    width: 5,
-    height: 5,
-    layerCount: 2,
-    dat: [
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2,
-    3, 2, 1, 3, 2, 1, 3, 2, 1, 3,
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2
-    ],
-    movementMask:[
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2,
-    3, 2, 1, 3, 2, 1, 3, 2, 1, 3,
-    1, 3, 3, 1, 1, 2, 2, 3, 3, 1,
-    2, 1, 2, 2, 3, 3, 1, 1, 2, 2
-    ],
-    rigidGroupIndexMask:[],//[indexgroupNumber, masked by layer arrays]
-    rigidMovementAppliedMask:[],//[indexgroupNumber, masked by layer arrays]
-    bannedGroup:[],
-    colCellContents:[],
-    rowCellContents:[],
-    colCellContents_Movements:[],
-    rowCellContents_Movements:[],
-};
 
-var level = initLevel;
+var level = new Level(); //just give it some starting state
 
 </script>
 <script>
@@ -7796,6 +7998,11 @@ function level4Serialization() {
 
 
 function setGameState(_state, command, randomseed) {
+	
+	if (_state===undefined) {
+		_state=introstate;
+		return;
+	}
 	oldflickscreendat=[];
 	timer=0;
 	autotick=0;
@@ -8192,6 +8399,10 @@ function DoRestart(force) {
 	if (force!==true && ('norestart' in state.metadata)) {
 		return;
 	}
+	
+	if (againing){
+		DoUndo(force,true);
+	}
 	restarting=true;
 	if (force!==true) {
 		addUndoState(backupLevel());
@@ -8407,217 +8618,8 @@ function repositionEntitiesAtCell(positionIndex) {
     return moved;
 }
 
-
-function Level(lineNumber, width, height, layerCount, objects) {
-	this.lineNumber = lineNumber;
-	this.width = width;
-	this.height = height;
-	this.n_tiles = width * height;
-	this.objects = objects;
-	this.layerCount = layerCount;
-	this.commandQueue = [];
-	this.commandQueueSourceRules = [];
-}
-
-Level.prototype.delta_index = function(direction)
-{
-	const [dx, dy] = dirMasksDelta[direction]
-	return dx*this.height + dy
-}
-
-Level.prototype.clone = function() {
-	var clone = new Level(this.lineNumber, this.width, this.height, this.layerCount, null);
-	clone.objects = new Int32Array(this.objects);
-	return clone;
-}
-
-Level.prototype.getCell = function(index) {
-	return new BitVec(this.objects.subarray(index * STRIDE_OBJ, index * STRIDE_OBJ + STRIDE_OBJ));
-}
-
-Level.prototype.getCellInto = function(index,targetarray) {
-	for (var i=0;i<STRIDE_OBJ;i++) {
-		targetarray.data[i]=this.objects[index*STRIDE_OBJ+i];	
-	}
-	return targetarray;
-}
-
-Level.prototype.setCell = function(index, vec) {
-	for (var i = 0; i < vec.data.length; ++i) {
-		this.objects[index * STRIDE_OBJ + i] = vec.data[i];
-	}
-}
-
-var _movementVecs;
-var _movementVecIndex=0;
-Level.prototype.getMovements = function(index) {
-	var _movementsVec=_movementVecs[_movementVecIndex];
-	_movementVecIndex=(_movementVecIndex+1)%_movementVecs.length;
-
-	for (var i=0;i<STRIDE_MOV;i++) {
-		_movementsVec.data[i]= this.movements[index*STRIDE_MOV+i];	
-	}
-	return _movementsVec;
-}
-
-Level.prototype.getRigids = function(index) {
-	return this.rigidMovementAppliedMask[index].clone();
-}
-
-Level.prototype.getMovementsInto = function(index,targetarray) {
-	var _movementsVec=targetarray;
-
-	for (var i=0;i<STRIDE_MOV;i++) {
-		_movementsVec.data[i]=this.movements[index*STRIDE_MOV+i];	
-	}
-	return _movementsVec;
-}
-
-Level.prototype.setMovements = function(index, vec) {
-	for (var i = 0; i < vec.data.length; ++i) {
-		this.movements[index * STRIDE_MOV + i] = vec.data[i];
-	}
-
-	var targetIndex = index*STRIDE_MOV + i;
-		
-	//corresponding object stuff in repositionEntitiesOnLayer
-	var colIndex=(index/this.height)|0;
-	var rowIndex=(index%this.height);
-	level.colCellContents_Movements[colIndex].ior(vec);
-	level.rowCellContents_Movements[rowIndex].ior(vec);
-	level.mapCellContents_Movements.ior(vec);
-
-
-}
-
 var ellipsisPattern = ['ellipsis'];
 
-function BitVec(init) {
-	this.data = new Int32Array(init);
-	return this;
-}
-
-BitVec.prototype.cloneInto = function(target) {
-	for (var i=0;i<this.data.length;++i) {
-		target.data[i]=this.data[i];
-	}
-	return target;
-}
-BitVec.prototype.clone = function() {
-	return new BitVec(this.data);
-}
-
-BitVec.prototype.iand = function(other) {
-	for (var i = 0; i < this.data.length; ++i) {
-		this.data[i] &= other.data[i];
-	}
-}
-
-
-BitVec.prototype.inot = function() {
-	for (var i = 0; i < this.data.length; ++i) {
-		this.data[i] = ~this.data[i];
-	}
-}
-
-BitVec.prototype.ior = function(other) {
-	for (var i = 0; i < this.data.length; ++i) {
-		this.data[i] |= other.data[i];
-	}
-}
-
-BitVec.prototype.iclear = function(other) {
-	for (var i = 0; i < this.data.length; ++i) {
-		this.data[i] &= ~other.data[i];
-	}
-}
-
-BitVec.prototype.ibitset = function(ind) {
-	this.data[ind>>5] |= 1 << (ind & 31);
-}
-
-BitVec.prototype.ibitclear = function(ind) {
-	this.data[ind>>5] &= ~(1 << (ind & 31));
-}
-
-BitVec.prototype.get = function(ind) {
-	return (this.data[ind>>5] & 1 << (ind & 31)) !== 0;
-}
-
-BitVec.prototype.getshiftor = function(mask, shift) {
-	var toshift = shift & 31;
-	var ret = this.data[shift>>5] >>> (toshift);
-	if (toshift) {
-		ret |= this.data[(shift>>5)+1] << (32 - toshift);
-	}
-	return ret & mask;
-}
-
-BitVec.prototype.ishiftor = function(mask, shift) {
-	var toshift = shift&31;
-	var low = mask << toshift;
-	this.data[shift>>5] |= low;
-	if (toshift) {
-		var high = mask >> (32 - toshift);
-		this.data[(shift>>5)+1] |= high;
-	}
-}
-
-BitVec.prototype.ishiftclear = function(mask, shift) {
-	var toshift = shift & 31;
-	var low = mask << toshift;
-	this.data[shift>>5] &= ~low;
-	if (toshift){
-		var high = mask >> (32 - (shift & 31));
-		this.data[(shift>>5)+1] &= ~high;
-	}
-}
-
-BitVec.prototype.equals = function(other) {
-	if (this.data.length !== other.data.length)
-		return false;
-	for (var i = 0; i < this.data.length; ++i) {
-		if (this.data[i] !== other.data[i])
-			return false;
-	}
-	return true;
-}
-
-BitVec.prototype.setZero = function() {
-	for (var i = 0; i < this.data.length; ++i) {
-		this.data[i]=0;
-	}
-}
-
-BitVec.prototype.iszero = function() {
-	for (var i = 0; i < this.data.length; ++i) {
-		if (this.data[i])
-			return false;
-	}
-	return true;
-}
-
-BitVec.prototype.bitsSetInArray = function(arr) {
-	for (var i = 0; i < this.data.length; ++i) {
-		if ((this.data[i] & arr[i]) !== this.data[i]) {
-			return false;
-		}
-	}
-	return true;
-}
-
-BitVec.prototype.bitsClearInArray = function(arr) {
-	for (var i = 0; i < this.data.length; ++i) {
-		if (this.data[i] & arr[i]) {
-			return false;
-		}
-	}
-	return true;
-}
-
-BitVec.prototype.anyBitsInCommon = function(other) {
-	return !this.bitsClearInArray(other.data);
-}
 
 function Rule(rule) {
 	this.direction = rule[0]; 		/* direction rule scans in */
@@ -9956,6 +9958,10 @@ function processInput(dir,dontDoWin,dontModify) {
 				}
         		addUndoState(bak);
         		DoUndo(true,false);
+
+				messagetext="";
+				textMode=false;
+
         		return false;
         	}
         	//play player cantmove sounds here
@@ -9991,7 +9997,7 @@ function processInput(dir,dontDoWin,dontModify) {
 
 	    	if (verbose_logging) { 
 	    		var r = level.commandQueueSourceRules[level.commandQueue.indexOf('restart')];
-	    		consolePrintFromRule('RESTART command executed, reverting to restart state.',r.lineNumber);
+	    		consolePrintFromRule('RESTART command executed, reverting to restart state.',r);
 	    		consoleCacheDump();
 			}
 			if (!dontModify){
@@ -10730,7 +10736,7 @@ var codeMirrorFn = function() {
                 state.legend_aggregates.push(newlegend);
         
             } else if (splits[3]==='or'){
-                var malformed=true;
+                var malformed=false;
 
                 var substitutor = function(n) {
 
@@ -10748,8 +10754,9 @@ var codeMirrorFn = function() {
                     for (var i=0;i<state.legend_aggregates.length;i++) {
                         var a = state.legend_aggregates[i];
                         if (a[0]===n) {           
-                            logError("Cannot define a property (something defined in terms of 'or') in terms of aggregates (something that uses 'and').", state.lineNumber);
-                            malformed=false;          
+                            logError(`Cannot define a property (something defined in terms of 'or') in terms of an aggregate (something that uses 'and').  In this case, you can't define "${splits[0]}" in terms of "${n}".`, state.lineNumber);
+                            malformed=true;  
+                            return [];        
                         }
                     }
                     for (var i=0;i<state.legend_properties.length;i++) {
@@ -10772,11 +10779,11 @@ var codeMirrorFn = function() {
 
                 for (var i = 5; i < splits.length; i += 2) {
                     if (splits[i].toLowerCase() !== 'or') {
-                        malformed = false;
+                        malformed = true;
                         break;
                     }
                 }
-                if (malformed) {
+                if (!malformed) {
                     var newlegend = [splits[0]].concat(substitutor(splits[2])).concat(substitutor(splits[4]));
                     for (var i = 6; i < splits.length; i += 2) {
                         newlegend.push(splits[i].toLowerCase());
@@ -10984,6 +10991,7 @@ var codeMirrorFn = function() {
                 if (state.commentLevel > 0) {
                     state.commentLevel--;
                     if (state.commentLevel === 0) {
+                        state.sol_after_comment=true;
                         return 'comment';
                     }
                 } else {
@@ -11036,101 +11044,114 @@ var codeMirrorFn = function() {
             }            
 
             //MATCH '==="s AT START OF LINE
-            if (sol && stream.match(reg_equalsrow, true)) {
+            //for #977 we need to be careful about matching an equals row in the levels section
+            //check if the line contains something other than an equals characte or space
+            var shouldmatchequals = true;
+            if (sol && state.section==="levels"){
+                var linestring =  stream.string.substring(stream.pos);
+                const reg_matchall_whitespace_equals = /^[\p{Z}\s=]*$/u;
+                if(!reg_matchall_whitespace_equals.test(linestring)){
+                    shouldmatchequals = false;
+                }            
+            }
+
+            if (sol && (shouldmatchequals&&stream.match(reg_equalsrow, true))) {
                 state.line_should_end = true;
                 state.line_should_end_because = 'a bunch of equals signs (\'===\')';
                 return 'EQUALSBIT';
             }
 
             //MATCH SECTION NAME
-            var sectionNameMatches = stream.match(reg_sectionNames, true);
-            if (sol && sectionNameMatches ) {
+            if (state.section!=="levels" /*cf #976 lol*/){
+                var sectionNameMatches = stream.match(reg_sectionNames, true);
+                if (sol && sectionNameMatches) {
 
-                state.section = sectionNameMatches[0].trim();
-                if (state.visitedSections.indexOf(state.section) >= 0) {
-                    logError('cannot duplicate sections (you tried to duplicate \"' + state.section.toUpperCase() + '").', state.lineNumber);
-                }
-                state.line_should_end = true;
-                state.line_should_end_because = `a section name ("${state.section.toUpperCase()}")`;
-                state.visitedSections.push(state.section);
-                var sectionIndex = sectionNames.indexOf(state.section);
-                if (sectionIndex == 0) {
-                    state.objects_section = 0;
-                    if (state.visitedSections.length > 1) {
-                        logError('section "' + state.section.toUpperCase() + '" must be the first section', state.lineNumber);
+                    state.section = sectionNameMatches[0].trim();
+                    if (state.visitedSections.indexOf(state.section) >= 0) {
+                        logError('cannot duplicate sections (you tried to duplicate \"' + state.section.toUpperCase() + '").', state.lineNumber);
                     }
-                } else if (state.visitedSections.indexOf(sectionNames[sectionIndex - 1]) == -1) {
-                    if (sectionIndex===-1) {
-                        //honestly not sure how I could get here.
-                        logError('no such section as "' + state.section.toUpperCase() + '".', state.lineNumber);
-                    } else {
-                        logError('section "' + state.section.toUpperCase() + '" is out of order, must follow  "' + sectionNames[sectionIndex - 1].toUpperCase() + '" (or it could be that the section "'+sectionNames[sectionIndex - 1].toUpperCase()+`"is just missing totally.  You have to include all section headings, even if the section itself is empty).`, state.lineNumber);                            
+                    state.line_should_end = true;
+                    state.line_should_end_because = `a section name ("${state.section.toUpperCase()}")`;
+                    state.visitedSections.push(state.section);
+                    var sectionIndex = sectionNames.indexOf(state.section);
+                    if (sectionIndex == 0) {
+                        state.objects_section = 0;
+                        if (state.visitedSections.length > 1) {
+                            logError('section "' + state.section.toUpperCase() + '" must be the first section', state.lineNumber);
+                        }
+                    } else if (state.visitedSections.indexOf(sectionNames[sectionIndex - 1]) == -1) {
+                        if (sectionIndex===-1) {
+                            //honestly not sure how I could get here.
+                            logError('no such section as "' + state.section.toUpperCase() + '".', state.lineNumber);
+                        } else {
+                            logError('section "' + state.section.toUpperCase() + '" is out of order, must follow  "' + sectionNames[sectionIndex - 1].toUpperCase() + '" (or it could be that the section "'+sectionNames[sectionIndex - 1].toUpperCase()+`"is just missing totally.  You have to include all section headings, even if the section itself is empty).`, state.lineNumber);                            
+                        }
                     }
-                }
 
-                if (state.section === 'sounds') {
-                    //populate names from rules
-                    for (var n in state.objects) {
-                        if (state.objects.hasOwnProperty(n)) {
-/*                                if (state.names.indexOf(n)!==-1) {
-                                logError('Object "'+n+'" has been declared to be multiple different things',state.objects[n].lineNumber);
-                            }*/
+                    if (state.section === 'sounds') {
+                        //populate names from rules
+                        for (var n in state.objects) {
+                            if (state.objects.hasOwnProperty(n)) {
+    /*                                if (state.names.indexOf(n)!==-1) {
+                                    logError('Object "'+n+'" has been declared to be multiple different things',state.objects[n].lineNumber);
+                                }*/
+                                state.names.push(n);
+                            }
+                        }
+                        //populate names from legends
+                        for (var i = 0; i < state.legend_synonyms.length; i++) {
+                            var n = state.legend_synonyms[i][0];
+                            /*
+                            if (state.names.indexOf(n)!==-1) {
+                                logError('Object "'+n+'" has been declared to be multiple different things',state.legend_synonyms[i].lineNumber);
+                            }
+                            */
+                            state.names.push(n);
+                        }
+                        for (var i = 0; i < state.legend_aggregates.length; i++) {
+                            var n = state.legend_aggregates[i][0];
+                            /*
+                            if (state.names.indexOf(n)!==-1) {
+                                logError('Object "'+n+'" has been declared to be multiple different things',state.legend_aggregates[i].lineNumber);
+                            }
+                            */
+                            state.names.push(n);
+                        }
+                        for (var i = 0; i < state.legend_properties.length; i++) {
+                            var n = state.legend_properties[i][0];
+                            /*
+                            if (state.names.indexOf(n)!==-1) {
+                                logError('Object "'+n+'" has been declared to be multiple different things',state.legend_properties[i].lineNumber);
+                            }                           
+                            */ 
                             state.names.push(n);
                         }
                     }
-                    //populate names from legends
-                    for (var i = 0; i < state.legend_synonyms.length; i++) {
-                        var n = state.legend_synonyms[i][0];
-                        /*
-                        if (state.names.indexOf(n)!==-1) {
-                            logError('Object "'+n+'" has been declared to be multiple different things',state.legend_synonyms[i].lineNumber);
+                    else if (state.section === 'levels') {
+                        //populate character abbreviations
+                        for (var n in state.objects) {
+                            if (state.objects.hasOwnProperty(n) && n.length == 1) {
+                                state.abbrevNames.push(n);
+                            }
                         }
-                        */
-                        state.names.push(n);
-                    }
-                    for (var i = 0; i < state.legend_aggregates.length; i++) {
-                        var n = state.legend_aggregates[i][0];
-                        /*
-                        if (state.names.indexOf(n)!==-1) {
-                            logError('Object "'+n+'" has been declared to be multiple different things',state.legend_aggregates[i].lineNumber);
-                        }
-                        */
-                        state.names.push(n);
-                    }
-                    for (var i = 0; i < state.legend_properties.length; i++) {
-                        var n = state.legend_properties[i][0];
-                        /*
-                        if (state.names.indexOf(n)!==-1) {
-                            logError('Object "'+n+'" has been declared to be multiple different things',state.legend_properties[i].lineNumber);
-                        }                           
-                        */ 
-                        state.names.push(n);
-                    }
-                }
-                else if (state.section === 'levels') {
-                    //populate character abbreviations
-                    for (var n in state.objects) {
-                        if (state.objects.hasOwnProperty(n) && n.length == 1) {
-                            state.abbrevNames.push(n);
-                        }
-                    }
 
-                    for (var i = 0; i < state.legend_synonyms.length; i++) {
-                        if (state.legend_synonyms[i][0].length == 1) {
-                            state.abbrevNames.push(state.legend_synonyms[i][0]);
+                        for (var i = 0; i < state.legend_synonyms.length; i++) {
+                            if (state.legend_synonyms[i][0].length == 1) {
+                                state.abbrevNames.push(state.legend_synonyms[i][0]);
+                            }
+                        }
+                        for (var i = 0; i < state.legend_aggregates.length; i++) {
+                            if (state.legend_aggregates[i][0].length == 1) {
+                                state.abbrevNames.push(state.legend_aggregates[i][0]);
+                            }
                         }
                     }
-                    for (var i = 0; i < state.legend_aggregates.length; i++) {
-                        if (state.legend_aggregates[i][0].length == 1) {
-                            state.abbrevNames.push(state.legend_aggregates[i][0]);
-                        }
+                    return 'HEADER';
+                } else {
+                    if (state.section === undefined) {
+                        //unreachable I think, pre-empted caught above
+                        logError('must start with section "OBJECTS"', state.lineNumber);
                     }
-                }
-                return 'HEADER';
-            } else {
-                if (state.section === undefined) {
-                    //unreachable I think, pre-empted caught above
-                    logError('must start with section "OBJECTS"', state.lineNumber);
                 }
             }
 
@@ -11865,7 +11886,7 @@ var codeMirrorFn = function() {
                 
                 default://if you're in the preamble
                 {
-                    if (sol) {
+                    if (sol||state.sol_after_comment) {
                         state.tokenIndex=0;
                     }
                     if (state.tokenIndex==0) {
@@ -11922,7 +11943,10 @@ var codeMirrorFn = function() {
                                 return 'ERROR';
                             }
                             return 'METADATA';
-                        }       
+                        } else {
+                            //garbage found
+                            logError(`Unrecognised stuff "${stream.string}" in the prelude.`, state.lineNumber);
+                        }    
                     } else {
                         stream.match(reg_notcommentstart, true);
                         state.tokenIndex++;
@@ -12072,10 +12096,6 @@ var debugMode;
 var colorPalette;
 
 function generateExtraMembers(state) {
-
-    if (state.collisionLayers.length === 0) {
-        logError("No collision layers defined.  All objects need to be in collision layers.");
-    }
 
     //annotate objects with layers
     //assign ids at the same time
@@ -12428,12 +12448,13 @@ function generateExtraMembers(state) {
             var lineNumber = state.original_line_numbers['background'];
             logError("background cannot be an aggregate (declared with 'and'), it has to be a simple type, or property (declared in terms of others using 'or').",lineNumber);
         } else {
+            //background doesn't exist. Error already printed elsewhere.
             var o = state.objects[state.idDict[0]];
             if (o!=null){
                 backgroundid = o.id;
                 backgroundlayer = o.layer;
             }
-            logError("you have to define something to be the background");
+            logError("Seriously, you have to define something to be the background.");
         }
     } else {
         backgroundid = state.objects.background.id;
@@ -12441,24 +12462,6 @@ function generateExtraMembers(state) {
     }
     state.backgroundid = backgroundid;
     state.backgroundlayer = backgroundlayer;
-}
-
-Level.prototype.calcBackgroundMask = function(state) {    
-    if (state.backgroundlayer === undefined) {
-        logError("you have to have a background layer");
-    }
-
-    var backgroundMask = state.layerMasks[state.backgroundlayer];
-    for (var i = 0; i < this.n_tiles; i++) {
-        var cell = this.getCell(i);
-        cell.iand(backgroundMask);
-        if (!cell.iszero()) {
-            return cell;
-        }
-    }
-    cell = new BitVec(STRIDE_OBJ);
-    cell.ibitset(state.backgroundid);
-    return cell;
 }
 
 function levelFromString(state, level) {
@@ -12558,6 +12561,7 @@ var simpleRelativeDirections = ['^', 'v', '<', '>'];
 var reg_directions_only = /^(\>|\<|\^|v|up|down|left|right|moving|stationary|no|randomdir|random|horizontal|vertical|orthogonal|perpendicular|parallel|action)$/;
 //redeclaring here, i don't know why
 var commandwords = ["sfx0", "sfx1", "sfx2", "sfx3", "sfx4", "sfx5", "sfx6", "sfx7", "sfx8", "sfx9", "sfx10", "cancel", "checkpoint", "restart", "win", "message", "again"];
+var commandwords_sfx = ["sfx0", "sfx1", "sfx2", "sfx3", "sfx4", "sfx5", "sfx6", "sfx7", "sfx8", "sfx9", "sfx10"];
 
 
 function directionalRule(rule) {
@@ -12696,11 +12700,14 @@ function processRuleString(rule, state, curRules) {
                         if (groupNumber === lineNumber) {
                             if (curRules.length == 0) {
                                 logError('The "+" symbol, for joining a rule with the group of the previous rule, needs a previous rule to be applied to.', lineNumber);
+                                has_plus=false;
                             }
                             if (i !== 0) {
                                 logError('The "+" symbol, for joining a rule with the group of the previous rule, must be the first symbol on the line ', lineNumber);
                             }
-                            groupNumber = curRules[curRules.length - 1].groupNumber;
+                            if (has_plus){
+                                groupNumber = curRules[curRules.length - 1].groupNumber;
+                            }
                         } else {
                             logError('Two "+"s (the "append to previous rule group" symbol) applied to the same rule.', lineNumber);
                         }
@@ -12768,6 +12775,7 @@ function processRuleString(rule, state, curRules) {
                         bracketbalance--;
                         if (bracketbalance < 0) {
                             logWarning("Multiple closing brackets without corresponding opening brackets.  Something fishy here.  Every '[' has to be closed by a ']', and you can't nest them.", lineNumber);
+                            return null;
                         }
 
                         if (curcell.length % 2 == 1) {
@@ -12801,6 +12809,7 @@ function processRuleString(rule, state, curRules) {
                             logWarning('Encountered an unexpected "->" inside square brackets.  It\'s used to separate states, it has no place inside them >:| .', lineNumber);
                         } else if (rhs) {
                             logError('Error, you can only use "->" once in a rule; it\'s used to separate before and after states.', lineNumber);
+                            return null;
                         } else {
                             rhs = true;
                         }
@@ -12836,6 +12845,19 @@ function processRuleString(rule, state, curRules) {
                             commands.push([token, messageStr]);
                             i = tokens.length;
                         } else {
+                            if (commandwords_sfx.indexOf(token) >= 0) {
+                                //check defined
+                                var found=false;
+                                for (var j = 0; j < state.sounds.length;j++){
+                                    var sound = state.sounds[j];
+                                    if (sound[0][0] === token){
+                                        found=true;
+                                    }
+                                }
+                                if (!found){
+                                    logWarning('Sound effect "' + token + '" not defined.', lineNumber);                            
+                                }
+                            }
                             commands.push([token]);
                         }
                     } else {
@@ -12920,6 +12942,9 @@ function rulesToArray(state) {
     for (var i = 0; i < oldrules.length; i++) {
         var lineNumber = oldrules[i][1];
         var newrule = processRuleString(oldrules[i], state, rules);
+        if (newrule==null){
+            continue;//error in processing string.
+        }
         if (newrule.bracket !== undefined) {
             loops.push([lineNumber, newrule.bracket]);
             continue;
@@ -13622,7 +13647,7 @@ function rulesToMask(state) {
         layerTemplate.push(null);
     }
 
-    for (var i = 0; i < state.rules.length; i++) {
+    outerloop: for (var i = 0; i < state.rules.length; i++) {
         var rule = state.rules[i];
         for (var j = 0; j < rule.lhs.length; j++) {
             var cellrow_l = rule.lhs[j];
@@ -13643,7 +13668,10 @@ function rulesToMask(state) {
                         objectsPresent = ellipsisPattern;
                         if (cell_l.length !== 2) {
                             logError("You can't have anything in with an ellipsis. Sorry.", rule.lineNumber);
-                            throw 'aborting compilation';//throwing here because I was getting infinite loops in the compiler otherwise
+                            //delete the rule
+                            state.rules.splice(i, 1);
+                            i--;
+                            continue outerloop;
                         } else if ((k === 0) || (k === cellrow_l.length - 1)) {
                             logError("There's no point in putting an ellipsis at the very start or the end of a rule", rule.lineNumber);
                         } else if (rule.rhs.length > 0) {
@@ -14098,6 +14126,40 @@ function generateRigidGroupList(state) {
     state.groupIndex_to_RigidGroupIndex = groupIndex_to_RigidGroupIndex;
 }
 
+function isObjectDefined(state, name) {
+    
+    var result = name in state.objects || 
+    (state.aggregatesDict!==undefined && (name in state.aggregatesDict)) || 
+    (state.propertiesDict!==undefined && (name in state.propertiesDict)) || 
+    (state.synonymsDict!==undefined && (name in state.synonymsDict));
+
+    if (state.legend_aggregates!==undefined){
+        for (var i=0;i<state.legend_aggregates.length;i++){
+            if (state.legend_aggregates[i][0]===name){
+                result = true;
+                break;
+            }
+        }
+    }
+    if (state.legend_properties!==undefined){
+        for (var i=0;i<state.legend_properties.length;i++){
+            if (state.legend_properties[i][0]===name){
+                result = true;
+                break;
+            }
+        }
+    }
+    if (state.legend_synonyms!==undefined){
+        for (var i=0;i<state.legend_synonyms.length;i++){
+            if (state.legend_synonyms[i][0]===name){
+                result = true;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 function getMaskFromName(state, name) {
     var objectMask = new BitVec(STRIDE_OBJ);
     if (name in state.objects) {
@@ -14130,7 +14192,7 @@ function getMaskFromName(state, name) {
     }
 
     if (objectMask.iszero()) {
-        logErrorNoLine("error, didn't find any object called player, either in the objects section, or the legends section. there must be a player!");
+        logErrorNoLine(`Error, didn't find any object called ${name}, either in the objects section, or the legends section.`);
     }
     return objectMask;
 }
@@ -14329,7 +14391,10 @@ function processWinConditions(state) {
         var aggr1 = false;
         var aggr2 = false;
 
-        if (n1 in state.objectMasks) {
+        if (wincondition.length <=2 ){
+            logError('Win conditions is badly formatted - needs to look something like "No Fruit", "All Target On Crate", "Some Fruit", "Some Gold on Chest", "No Gold on Chest", or the like.', lineNumber);
+        }
+        else if (n1 in state.objectMasks) {
             aggr1 = false;
             mask1 = state.objectMasks[n1];
         } else if (n1 in state.aggregateMasks){
@@ -14718,6 +14783,10 @@ function generateSoundData(state) {
                     var targetName = targets[j];
                     var targetDat = state.objects[targetName];
                     var targetLayer = targetDat.layer;
+                    //if not found, continue - probably from the error ""aggr" is an aggregate (defined using "and"), and cannot be added to a single layer because its constituent objects must be able to coexist."
+                    if (targetLayer === undefined) {
+                        continue;
+                    }
                     var shiftedDirectionMask = new BitVec(STRIDE_MOV);
                     shiftedDirectionMask.ishiftor(directionMask, 5 * targetLayer);
 
@@ -14845,7 +14914,19 @@ function loadFile(str) {
         while (ss.eol() === false);
     }
 
-    // delete state.lineNumber;
+    //check if player defined
+    if (!isObjectDefined(state,"player")){            
+        logErrorNoLine("Error, didn't find any object called player, either in the objects section, or the legends section. There must be a player!");
+    }
+    //check if background
+    if (!isObjectDefined(state,"background")){
+        logErrorNoLine("Error, didn't find any object called background, either in the objects section, or the legends section. There must be a background!");
+    }
+
+    if (state.collisionLayers.length === 0) {
+        logError("No collision layers defined.  All objects need to be in collision layers.");
+        return null;
+    }
 
     generateExtraMembers(state);
     generateMasks(state);
@@ -14952,10 +15033,18 @@ function compile(command, text, randomseed) {
     
 
     if (errorCount > 0) {
-        if (IDE===false){
-            consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly.  If this is an older game, and you think it just broke because of recent changes in the puzzlescript engine, please consider dropping an email to analytic@gmail.com with a link to the game and I\'ll try make sure it\'s back working ASAP.</span>');
-        } else{
-            consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly.</span>');
+        if (IDE===false){            
+            if (state==null){
+                consoleError('<span class="systemMessage">Errors detected during compilation; I can\'t salvage anything playable from it.  If this is an older game, and you think it just broke because of recent changes in the puzzlescript engine, please consider dropping an email to analytic@gmail.com with a link to the game and I\'ll try make sure it\'s back working ASAP.</span>');
+            } else {
+                consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly. If this is an older game, and you think it just broke because of recent changes in the puzzlescript engine, please consider dropping an email to analytic@gmail.com with a link to the game and I\'ll try make sure it\'s back working ASAP.</span>');
+            }
+        } else {
+            if (state==null){
+                consoleError('<span class="systemMessage">Errors detected during compilation; I can\'t salvage anything playable from it.</span>');
+            } else {
+                consoleError('<span class="systemMessage">Errors detected during compilation; the game may not work correctly.</span>');
+            }
         }
         if (errorCount > MAX_ERRORS) {
             return;
@@ -15182,7 +15271,9 @@ function matchGlyph(inputmask,glyphAndMask) {
 		return highestmask;
 	}
 	
-	logErrorNoLine("Wasn't able to approximate a glyph value for some tiles, using '.' as a placeholder.",true);
+	compiling=true; //i'm so sorry cf #999 "can't print level to console if too many approximations lol"
+	logWarningNoLine("Wasn't able to approximate glyph values for some tiles, using '.' as a placeholder.",false);
+	compiling=false;
 	return '.';
 }
 
@@ -15897,27 +15988,21 @@ function update() {
     }
 }
 
-var looping=false;
+var prevTimestamp;
 // Lights, camera…function!
-var loop = function(){
-	looping=true;
+var loop = function(timestamp){
+	if (prevTimestamp !== undefined) {
+		deltatime = timestamp - prevTimestamp
+	}
+	prevTimestamp = timestamp
 	update();
-	if (document.visibilityState==='hidden'){
-		looping=false;
-		return;
-	};
-	setTimeout(loop,deltatime);
+	// requestAnimationFrame will call loop() at the 
+	// browser's refresh rate (generally 60fps)
+	// and will auto pause/unpause when the window is minimized
+	window.requestAnimationFrame(loop);
 }
 
-document.addEventListener('visibilitychange', function logData() {
-	if (document.visibilityState === 'visible') {
-		if (looping===false){
-			loop();
-		}
-	}
-  });
-
-loop();
+window.requestAnimationFrame(loop);
 
 </script>
 <script>
@@ -16618,7 +16703,8 @@ Mobile.debugDot = function (event) {
             height: "100%",
             overflow: "hidden",
             position: "fixed",
-            width: "100%"
+            width: "100%",
+            margin: 0
         }
         
         var styleString = "";

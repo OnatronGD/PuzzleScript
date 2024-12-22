@@ -176,7 +176,9 @@ function matchGlyph(inputmask,glyphAndMask) {
 		return highestmask;
 	}
 	
-	logErrorNoLine("Wasn't able to approximate a glyph value for some tiles, using '.' as a placeholder.",true);
+	compiling=true; //i'm so sorry cf #999 "can't print level to console if too many approximations lol"
+	logWarningNoLine("Wasn't able to approximate glyph values for some tiles, using '.' as a placeholder.",false);
+	compiling=false;
 	return '.';
 }
 
@@ -891,24 +893,18 @@ function update() {
     }
 }
 
-var looping=false;
+var prevTimestamp;
 // Lights, camera…function!
-var loop = function(){
-	looping=true;
+var loop = function(timestamp){
+	if (prevTimestamp !== undefined) {
+		deltatime = timestamp - prevTimestamp
+	}
+	prevTimestamp = timestamp
 	update();
-	if (document.visibilityState==='hidden'){
-		looping=false;
-		return;
-	};
-	setTimeout(loop,deltatime);
+	// requestAnimationFrame will call loop() at the 
+	// browser's refresh rate (generally 60fps)
+	// and will auto pause/unpause when the window is minimized
+	window.requestAnimationFrame(loop);
 }
 
-document.addEventListener('visibilitychange', function logData() {
-	if (document.visibilityState === 'visible') {
-		if (looping===false){
-			loop();
-		}
-	}
-  });
-
-loop();
+window.requestAnimationFrame(loop);
