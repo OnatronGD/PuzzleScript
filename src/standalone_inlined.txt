@@ -17552,7 +17552,8 @@ function pollGamepads() {
 	function keyPressed(keycode) {
     	if(keybuffer.indexOf(keycode) === -1) {
     		keybuffer.splice(keyRepeatIndex, 0, keycode);
-	    	keyRepeatTimer = 0;
+			keyRepeatTimer = 0;
+			repeatinterval = repeatintervalstart;
 	    	checkKey({keyCode: keycode}, true);
 		}
 
