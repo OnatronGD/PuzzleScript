@@ -1,3 +1,5 @@
+'use strict';
+
 /*
  * Add gesture support for mobile devices.
  */
@@ -5,17 +7,17 @@
 window.Mobile = {};
 
 //stolen from https://github.com/Modernizr/Modernizr/blob/master/feature-detects/touchevents.js
-Mobile.hasTouch = function() {
+Mobile.hasTouch = function () {
     var bool;
-    if(('ontouchstart' in window) || window.DocumentTouch && document instanceof DocumentTouch)     {
-      bool = true;
+    if (('ontouchstart' in window) || window.DocumentTouch && document instanceof DocumentTouch) {
+        bool = true;
     } else {
-      /*
-      //don't know what's happening with this, so commented it out
-      var query = ['@media (',prefixes.join('touch-enabled),    ('),'heartz',')','{#modernizr{top:9px;position:absolute}}'].join('');
-      testStyles(query, function( node ) {
-        bool = node.offsetTop === 9;
-      });*/
+        /*
+        //don't know what's happening with this, so commented it out
+        var query = ['@media (',prefixes.join('touch-enabled),    ('),'heartz',')','{#modernizr{top:9px;position:absolute}}'].join('');
+        testStyles(query, function( node ) {
+          bool = node.offsetTop === 9;
+        });*/
     }
     return bool;
 }
@@ -70,14 +72,14 @@ Mobile.debugDot = function (event) {
 
     // Lookup table mapping action to keyCode.
     var CODE = {
-        action:  88, // x
-        left:    37, // left arrow
-        right:   39, // right arrow
-        up:      38, // up arrow
-        down:    40, // down arrow
-        undo:    85, // u
+        action: 88, // x
+        left: 37, // left arrow
+        right: 39, // right arrow
+        up: 38, // up arrow
+        down: 40, // down arrow
+        undo: 85, // u
         restart: 82, // r
-        quit:    27 // escape
+        quit: 27 // escape
     }
 
     var TAB_STRING = [
@@ -164,7 +166,7 @@ Mobile.debugDot = function (event) {
             return;
         }
         if (!this.gestured) {
-            if (event.touches.length === 0 && event.target.id!=="unMuteButton" && event.target.id!=="muteButton" ) {
+            if (event.touches.length === 0 && event.target.id !== "unMuteButton" && event.target.id !== "muteButton") {
                 this.handleTap();
             }
         }
@@ -181,7 +183,7 @@ Mobile.debugDot = function (event) {
         if (!this.isFocused) {
             return;
         }
-        if (levelEditorOpened){
+        if (levelEditorOpened) {
             return;
         }
         if (this.isSuccessfulSwipe()) {
@@ -206,7 +208,7 @@ Mobile.debugDot = function (event) {
 
         this.isFocused = this.isTouchInsideFocusElement(event);
         this.setFocusIndicatorVisibility(this.isFocused);
-        
+
         canvas.focus();
         editor.display.input.blur();
     };
@@ -533,9 +535,9 @@ Mobile.debugDot = function (event) {
 
         //the reason I'm adding all these empty click events is on safari to disable double-tap to zoom (also needs some other css settings. cf https://github.com/increpare/PuzzleScript/issues/599 SMGDH)
         this.tabAffordance.addEventListener('touchstart', openCallback);
-        this.tabAffordance.addEventListener("click", event => {});
+        this.tabAffordance.addEventListener("click", event => { });
         this.tabElem.addEventListener('touchstart', openCallback);
-        this.tabElem.addEventListener("click", event => {});
+        this.tabElem.addEventListener("click", event => { });
 
         body = document.getElementsByTagName('body')[0];
         body.appendChild(assemblyElem);
@@ -560,9 +562,9 @@ Mobile.debugDot = function (event) {
         this.closeAffordance = this.menuElem.getElementsByClassName('close-affordance')[0];
         closeTab = this.menuElem.getElementsByClassName('close')[0];
         this.closeAffordance.addEventListener('touchstart', closeCallback);
-        this.closeAffordance.addEventListener("click", event => {});
+        this.closeAffordance.addEventListener("click", event => { });
         closeTab.addEventListener('touchstart', closeCallback);
-        closeTab.addEventListener("click", event => {});
+        closeTab.addEventListener("click", event => { });
 
         undo = this.menuElem.getElementsByClassName('undo')[0];
         if (undo) {
@@ -570,7 +572,7 @@ Mobile.debugDot = function (event) {
                 event.stopPropagation();
                 self.emitKeydown('undo');
             });
-            undo.addEventListener("click", event => {});
+            undo.addEventListener("click", event => { });
         }
         restart = this.menuElem.getElementsByClassName('restart')[0];
         if (restart) {
@@ -578,7 +580,7 @@ Mobile.debugDot = function (event) {
                 event.stopPropagation();
                 self.emitKeydown('restart');
             });
-            restart.addEventListener("click", event => {});
+            restart.addEventListener("click", event => { });
         }
 
         quit = this.menuElem.getElementsByClassName('quit')[0];
@@ -586,14 +588,14 @@ Mobile.debugDot = function (event) {
             event.stopPropagation();
             self.emitKeydown('quit');
         });
-        quit.addEventListener("click", event => {});
+        quit.addEventListener("click", event => { });
 
         body = document.getElementsByTagName('body')[0];
         body.appendChild(this.menuElem);
     };
 
     proto.buildMenuString = function (state) {
-    // Template for the menu.
+        // Template for the menu.
         var itemCount, menuLines;
         var noUndo, noRestart;
 
@@ -680,7 +682,7 @@ Mobile.debugDot = function (event) {
 
         if (ratio <= 0.001) {
             this.closeAffordance.setAttribute('style', 'display: none;');
-            opacityString="display:none;"
+            opacityString = "display:none;"
         } else {
             this.closeAffordance.setAttribute('style', 'display: block;');
         }
@@ -690,7 +692,7 @@ Mobile.debugDot = function (event) {
         this.menuElem.setAttribute('style', opacityString);
     };
 
-    proto.disableScrolling = function() {
+    proto.disableScrolling = function () {
         var style = {
             height: "100%",
             overflow: "hidden",
@@ -698,7 +700,7 @@ Mobile.debugDot = function (event) {
             width: "100%",
             margin: 0
         }
-        
+
         var styleString = "";
         for (var key in style) {
             styleString += key + ": " + style[key] + "; ";
@@ -711,7 +713,7 @@ Mobile.debugDot = function (event) {
 
     proto.disableAudio = function () {
         // Overwrite the playseed function to disable it.
-        window.playSeed = function () {};
+        window.playSeed = function () { };
     };
 
     proto.isAudioSupported = function () {
@@ -819,7 +821,7 @@ function Animatable(key, increment, update) {
 
     ratio = 0;
 
-    function tickUp () {
+    function tickUp() {
         var isFinished;
         ratio += increment;
         if (ratio >= 1.0) {
@@ -830,7 +832,7 @@ function Animatable(key, increment, update) {
         return isFinished;
     };
 
-    function tickDown () {
+    function tickDown() {
         var isFinished;
         ratio -= increment;
         if (ratio <= 0.0) {
@@ -852,7 +854,7 @@ function Animatable(key, increment, update) {
 
 // MIT license
 
-(function() {
+(function () {
     'use strict';
 
     var VENDORS = ['ms', 'moz', 'webkit', 'o'];
@@ -868,12 +870,12 @@ function Animatable(key, increment, update) {
 
     if (!window.requestAnimationFrame) {
         lastTime = 0;
-        window.requestAnimationFrame = function(callback, element) {
+        window.requestAnimationFrame = function (callback, element) {
             var currTime, timeToCall, id;
 
             currTime = new Date().getTime();
             timeToCall = Math.max(0, 16 - (currTime - lastTime));
-            id = window.setTimeout(function() {
+            id = window.setTimeout(function () {
                 callback(currTime + timeToCall);
             }, timeToCall);
             lastTime = currTime + timeToCall;
@@ -883,7 +885,7 @@ function Animatable(key, increment, update) {
     }
 
     if (!window.cancelAnimationFrame) {
-        window.cancelAnimationFrame = function(id) {
+        window.cancelAnimationFrame = function (id) {
             clearTimeout(id);
         };
     }

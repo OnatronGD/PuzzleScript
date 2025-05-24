@@ -1,4 +1,5 @@
-var games_gallery = [
+//do not change go const...is modified elsewhere
+let games_gallery = [
   {
     "url": "https://www.puzzlescript.net/play.html?p=6841165",
     "thumb": "6841165.gif",
@@ -884,5 +885,26 @@ var games_gallery = [
     "title": "Billy Bob's Uphill Climb",
     "author": "Monakrom",
     "homepage": "https://monakrom.itch.io"
-  }
+  },
+  {
+    "url": "https://www.puzzlescript.net/play.html?p=25ee2f1c9000620aa7b6f429c958d095",
+    "thumb": "iamtwo.gif",
+    "title": "I am two",
+    "author": "nebu soku",
+    "homepage": "https://nebu-soku.itch.io/i-am-two"
+  },
+  {
+    "url": "https://www.puzzlescript.net/play.html?p=95dc770efe45854e528fa80a48eeca0a",
+    "thumb": "transition.gif",
+    "title": "Transition",
+    "author": "NinaBirb",
+    "homepage": "https://ninabirb.itch.io/transition/"
+  },
+  {
+    "url": "https://www.puzzlescript.net/play.html?p=be5d4f8a38062b1ac9d795c85979e4b6",
+    "thumb": "yukiasobi.gif",
+    "title": "YukiAsobi",
+    "author": "nebu soku",
+    "homepage": "https://nebu-soku.itch.io/yukiasobi"
+  },
 ]
