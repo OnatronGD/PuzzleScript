@@ -23,7 +23,7 @@
             ["flickscreen", "8x5"],
             ["homepage", "www.puzzlescript.net"],
             ["key_repeat_interval", "0.1"],
-            ["key_repeat_interval_start", "0.1"]
+            ["key_repeat_interval_start", "0.1"],
             ["noaction", ""],
             ["norepeat_action", ""],
             ["norestart", ""],
